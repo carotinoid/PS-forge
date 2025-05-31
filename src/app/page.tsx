@@ -5,7 +5,7 @@ import * as React from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Cpu, Settings2, Tags, Wand2, ThumbsUp, RefreshCcw, FileOutput, FileCheck, FileCode2, ClipboardCopy, SearchCheck, Info, CheckCircle2, AlertTriangle, Thermometer, Lightbulb, Edit3 } from "lucide-react";
+import { Cpu, Settings2, Tags, Wand2, ThumbsUp, RefreshCcw, FileOutput, FileCheck, FileCode2, ClipboardCopy, SearchCheck, Info, CheckCircle2, AlertTriangle, Thermometer, Lightbulb, Edit3, TrendingUp, BarChartBig } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -16,8 +16,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Slider } from "@/components/ui/slider";
 
 
-import type { ProblemStatement, StatementEvaluation, GeneratedCodes, FullProblemEvaluation } from "@/types";
-import { AppStep, DIFFICULTIES } from "@/types";
+import type { ProblemStatement, StatementEvaluation, GeneratedCodes, FullProblemEvaluation, DifficultyTier, DifficultyLevel } from "@/types";
+import { AppStep, TIERS, LEVELS } from "@/types";
 
 import { generateProblemStatement } from "@/ai/flows/generate-problem-statement";
 import { evaluateProblemStatement } from "@/ai/flows/evaluate-problem-statement";
@@ -32,7 +32,8 @@ import { SectionCard } from "@/components/ps-forge/SectionCard";
 
 
 const formSchema = z.object({
-  difficulty: z.string({ required_error: "Please select a difficulty." }),
+  difficultyTier: z.string({ required_error: "Please select a difficulty tier." }) as z.ZodType<DifficultyTier>,
+  difficultyLevel: z.string({ required_error: "Please select a difficulty level." }) as z.ZodType<DifficultyLevel>,
   algorithmTags: z.string().min(1, "Please enter at least one algorithm tag."),
   temperature: z.preprocess(
     (val) => {
@@ -117,7 +118,8 @@ export default function PsForgePage() {
   const form = useForm<UserInputFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      difficulty: "Gold V", // Default to mid-range
+      difficultyTier: "Gold",
+      difficultyLevel: "V",
       algorithmTags: "",
       temperature: 0.7, 
       titleIdea: "",
@@ -128,10 +130,11 @@ export default function PsForgePage() {
   const handleGenerateStatement: SubmitHandler<UserInputFormValues> = async (data) => {
     setIsLoading(true);
     try {
+      const combinedDifficulty = `${data.difficultyTier} ${data.difficultyLevel}`;
       const statement = await callAIFlowWithRetry(
         generateProblemStatement,
         { 
-          difficulty: data.difficulty, 
+          difficulty: combinedDifficulty, 
           algorithmTags: data.algorithmTags, 
           temperature: data.temperature,
           titleIdea: data.titleIdea,
@@ -261,26 +264,54 @@ export default function PsForgePage() {
           <SectionCard title="Configure Problem" icon={Settings2} description="Specify the desired difficulty, algorithm tags, AI creativity, and any initial ideas for your problem.">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleGenerateStatement)} className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="difficulty"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Difficulty</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select difficulty" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {DIFFICULTIES.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="difficultyTier"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center">
+                            <TrendingUp className="mr-2 h-4 w-4 text-primary/80" />
+                            Difficulty Tier
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select tier" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {TIERS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="difficultyLevel"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center">
+                            <BarChartBig className="mr-2 h-4 w-4 text-primary/80" />
+                            Difficulty Level (V is lowest)
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select level" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {LEVELS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <FormField
                   control={form.control}
                   name="algorithmTags"

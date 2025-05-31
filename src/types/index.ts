@@ -34,9 +34,11 @@ export enum AppStep {
   REVIEW_FULL_PROBLEM,
 }
 
-const TIERS = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ruby"] as const;
-const LEVELS = ["V", "IV", "III", "II", "I"] as const;
+export const TIERS = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ruby"] as const;
+export const LEVELS = ["V", "IV", "III", "II", "I"] as const;
 
+// This generates the full list like "Bronze V", "Silver I", etc.
+// It's still useful for the AI flow's expected input.
 const generateDifficulties = () => {
   const difficulties: string[] = [];
   TIERS.forEach(tier => {
@@ -48,4 +50,7 @@ const generateDifficulties = () => {
 };
 
 export const DIFFICULTIES = generateDifficulties();
-export type Difficulty = (typeof DIFFICULTIES)[number];
+export type Difficulty = (typeof DIFFICULTIES)[number]; // This type represents the combined string e.g. "Gold V"
+
+export type DifficultyTier = (typeof TIERS)[number];
+export type DifficultyLevel = (typeof LEVELS)[number];
