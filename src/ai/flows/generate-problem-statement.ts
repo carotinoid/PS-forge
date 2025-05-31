@@ -1,6 +1,5 @@
 
 'use server';
-
 /**
  * @fileOverview A problem statement generator AI agent.
  *
@@ -10,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import type {GenerateOptions} from 'genkit';
 import {z}from 'genkit';
 
 const GenerateProblemStatementInputSchema = z.object({
@@ -19,6 +19,7 @@ const GenerateProblemStatementInputSchema = z.object({
   algorithmTags: z
     .string()
     .describe('Comma-separated list of relevant algorithms (e.g., Dynamic Programming, Graph Theory).'),
+  temperature: z.number().min(0).max(1).optional().describe('Optional. The creativity temperature for the AI model (0.0 to 1.0). Higher values mean more creative/random, lower values mean more deterministic. If not provided, model default is used.'),
 });
 export type GenerateProblemStatementInput = z.infer<
   typeof GenerateProblemStatementInputSchema
@@ -80,8 +81,11 @@ const generateProblemStatementFlow = ai.defineFlow(
     outputSchema: GenerateProblemStatementOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const generateOptions: GenerateOptions = {};
+    if (input.temperature !== undefined) {
+      generateOptions.temperature = input.temperature;
+    }
+    const {output} = await prompt(input, generateOptions);
     return output!;
   }
 );
-

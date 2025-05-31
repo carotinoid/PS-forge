@@ -5,7 +5,7 @@ import * as React from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Cpu, Settings2, Tags, Wand2, ThumbsUp, ThumbsDown, RefreshCcw, FileOutput, FileCheck, FileCode2, ClipboardCopy, SearchCheck, Info, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Cpu, Settings2, Tags, Wand2, ThumbsUp, RefreshCcw, FileOutput, FileCheck, FileCode2, ClipboardCopy, SearchCheck, Info, CheckCircle2, AlertTriangle, Thermometer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Slider } from "@/components/ui/slider";
+
 
 import type { ProblemStatement, StatementEvaluation, GeneratedCodes, FullProblemEvaluation } from "@/types";
 import { AppStep, DIFFICULTIES } from "@/types";
@@ -32,6 +34,14 @@ import { SectionCard } from "@/components/ps-forge/SectionCard";
 const formSchema = z.object({
   difficulty: z.enum(DIFFICULTIES, { required_error: "Please select a difficulty." }),
   algorithmTags: z.string().min(1, "Please enter at least one algorithm tag."),
+  temperature: z.preprocess(
+    (val) => {
+      if (val === "" || val === undefined || val === null) return undefined;
+      const num = parseFloat(String(val));
+      return isNaN(num) ? undefined : num;
+    },
+    z.number().min(0).max(1).optional()
+  ),
 });
 
 type UserInputFormValues = z.infer<typeof formSchema>;
@@ -47,34 +57,43 @@ async function callAIFlowWithRetry<T_Input, T_Output>(
   input: T_Input,
   flowName: string,
   setLoadingMessage: (message: string) => void,
-  toast: ReturnType<typeof useToast>['toast'],
+  toastFn: ReturnType<typeof useToast>['toast'], // Renamed to avoid conflict
   maxRetries: number = 3,
   initialDelay: number = 2000 // 2 seconds
 ): Promise<T_Output> {
   let attempts = 0;
   while (attempts < maxRetries) {
     try {
-      setLoadingMessage(`Generating ${flowName}... (Attempt ${attempts + 1})`);
+      let loadingMsg;
+      if (attempts === 0) { // First try
+          loadingMsg = `Generating ${flowName}...`;
+      } else if (attempts === 1) { // Second try (first retry)
+          loadingMsg = `Generating ${flowName}... (Retrying...)`;
+      } else { // Third try onwards (second retry onwards)
+          loadingMsg = `Generating ${flowName}... (Attempt ${attempts + 1})`;
+      }
+      setLoadingMessage(loadingMsg);
       return await flowFunction(input);
     } catch (error: any) {
-      attempts++;
+      const currentAttemptForToast = attempts + 1;
+      attempts++; // Increment attempts for the next loop iteration or for maxRetries check
       const isLastAttempt = attempts >= maxRetries;
       const errorMessage = error.message || 'Unknown error';
 
-      toast({
+      toastFn({ // Use the renamed toastFn
         variant: isLastAttempt ? "destructive" : "default",
-        title: `AI Request: ${flowName} ${isLastAttempt ? 'Failed' : 'Attempt Failed'}`,
+        title: `AI Request: ${flowName} ${isLastAttempt ? 'Failed' : `Attempt ${currentAttemptForToast} Failed`}`,
         description: isLastAttempt 
           ? `After ${maxRetries} attempts, the request could not be completed. Error: ${errorMessage}`
-          : `Attempt ${attempts} for ${flowName} encountered an issue. Retrying...`,
+          : `Attempt ${currentAttemptForToast} for ${flowName} encountered an issue. Retrying...`,
       });
 
       if (isLastAttempt) {
         throw error;
       }
 
-      const waitTime = Math.pow(2, attempts -1) * initialDelay; // Exponential backoff
-      setLoadingMessage(`Attempt ${attempts} for ${flowName} failed. Retrying in ${waitTime / 1000}s...`);
+      const waitTime = Math.pow(2, attempts -1) * initialDelay; // Exponential backoff using the updated attempts
+      setLoadingMessage(`Attempt ${currentAttemptForToast} for ${flowName} failed. Retrying in ${waitTime / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
@@ -84,7 +103,7 @@ async function callAIFlowWithRetry<T_Input, T_Output>(
 
 
 export default function PsForgePage() {
-  const { toast } = useToast();
+  const { toast } = useToast(); // Original toast hook for general use
   const [currentStep, setCurrentStep] = React.useState<AppStep>(AppStep.USER_INPUT);
   const [isLoading, setIsLoading] = React.useState(false);
   const [loadingMessage, setLoadingMessage] = React.useState("Generating...");
@@ -99,6 +118,7 @@ export default function PsForgePage() {
     defaultValues: {
       difficulty: "Medium",
       algorithmTags: "",
+      temperature: 0.7, // Default temperature
     },
   });
 
@@ -107,10 +127,10 @@ export default function PsForgePage() {
     try {
       const statement = await callAIFlowWithRetry(
         generateProblemStatement,
-        { difficulty: data.difficulty, algorithmTags: data.algorithmTags },
+        { difficulty: data.difficulty, algorithmTags: data.algorithmTags, temperature: data.temperature },
         "Problem Statement",
         setLoadingMessage,
-        toast
+        toast 
       );
       setProblemStatement(statement);
       toast({ title: "Statement Generated", description: "Problem statement created successfully." });
@@ -120,7 +140,7 @@ export default function PsForgePage() {
         { problemStatement: JSON.stringify(statement) },
         "Statement Evaluation",
         setLoadingMessage,
-        toast
+        toast 
       );
       setStatementEvaluation(evaluation);
       toast({ title: "Statement Evaluated", description: "Evaluation complete." });
@@ -128,7 +148,6 @@ export default function PsForgePage() {
       setCurrentStep(AppStep.REVIEW_STATEMENT);
     } catch (error) {
       console.error("Error generating or evaluating statement:", error);
-      // Toast for final failure is handled by callAIFlowWithRetry
     }
     setIsLoading(false);
   };
@@ -170,7 +189,7 @@ export default function PsForgePage() {
         evaluateFullProblem,
         {
           statement: JSON.stringify(problemStatement),
-          inputs: codes.inputGeneratorCode || "", // Provide empty string if undefined
+          inputs: codes.inputGeneratorCode || "", 
           validator: codes.validatorCode || "",
           solution: codes.solutionCode || "",
         },
@@ -182,7 +201,6 @@ export default function PsForgePage() {
       setCurrentStep(AppStep.REVIEW_FULL_PROBLEM);
     } catch (error) {
       console.error("Error generating codes or full evaluation:", error);
-      // Toast for final failure is handled by callAIFlowWithRetry
     }
     setIsLoading(false);
   };
@@ -210,10 +228,13 @@ export default function PsForgePage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center p-4 sm:p-8">
       {isLoading && <FullPageLoading message={loadingMessage} />}
       <header className="w-full max-w-5xl mb-8 text-center">
-        <div className="flex items-center justify-center gap-3 mb-4">
+        <div className="flex items-center justify-center gap-3 mb-2">
           <Cpu className="h-12 w-12 text-primary" />
           <h1 className="text-5xl font-headline font-bold text-primary">PS Forge</h1>
         </div>
+        <p className="text-xs text-muted-foreground/90 mb-3">
+          Using model: googleai/gemini-2.0-flash
+        </p>
         <p className="text-lg text-muted-foreground font-body">
           Automated Algorithm Problem Generator - Crafting challenges with AI.
         </p>
@@ -225,7 +246,7 @@ export default function PsForgePage() {
 
       <main className="w-full max-w-4xl space-y-8">
         {currentStep === AppStep.USER_INPUT && (
-          <SectionCard title="Configure Problem" icon={Settings2} description="Specify the desired difficulty and relevant algorithm tags for your problem.">
+          <SectionCard title="Configure Problem" icon={Settings2} description="Specify the desired difficulty, algorithm tags, and AI creativity for your problem.">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleGenerateStatement)} className="space-y-6">
                 <FormField
@@ -264,6 +285,40 @@ export default function PsForgePage() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="temperature"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center">
+                        <Thermometer className="mr-2 h-4 w-4 text-primary/80" />
+                        Creativity Temperature (Optional)
+                      </FormLabel>
+                      <FormControl>
+                         <Input
+                          type="number"
+                          placeholder="e.g., 0.7 (0.0 to 1.0)"
+                          step="0.1"
+                          min="0"
+                          max="1"
+                          {...field}
+                          onChange={event => field.onChange(event.target.value === '' ? undefined : parseFloat(event.target.value))}
+                          value={field.value ?? ""} 
+                        />
+                      </FormControl>
+                      <Slider
+                        defaultValue={[field.value ?? 0.7]}
+                        min={0} max={1} step={0.05}
+                        onValueChange={(value) => field.onChange(value[0])}
+                        className="pt-2"
+                      />
+                      <FormDescription>
+                        Controls randomness (0.0=deterministic, 1.0=max creative). Default: 0.7.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
                   <Wand2 className="mr-2 h-5 w-5" />
                   Generate Statement
@@ -275,22 +330,22 @@ export default function PsForgePage() {
 
         {currentStep === AppStep.REVIEW_STATEMENT && problemStatement && statementEvaluation && (
           <>
-            <SectionCard title={problemStatement.title} icon={Info}>
+            <SectionCard title={problemStatement.title || "Generated Problem Statement"} icon={Info}>
               <div className="space-y-4">
                 <div><strong>Time Limit:</strong> {problemStatement.timeLimit}</div>
                 <div><strong>Memory Limit:</strong> {problemStatement.memoryLimit}</div>
                 <h3 className="font-semibold mt-2 font-headline">Legend:</h3>
-                <Textarea value={problemStatement.legend} readOnly rows={10} className="bg-muted/50 font-code resize-y"/>
+                <Textarea value={problemStatement.legend} readOnly rows={12} className="bg-muted/50 font-code resize-y"/>
                 <h3 className="font-semibold mt-2 font-headline">Inputs:</h3>
-                <Textarea value={problemStatement.inputs} readOnly rows={7} className="bg-muted/50 font-code resize-y"/>
+                <Textarea value={problemStatement.inputs} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
                 <h3 className="font-semibold mt-2 font-headline">Outputs:</h3>
-                <Textarea value={problemStatement.outputs} readOnly rows={7} className="bg-muted/50 font-code resize-y"/>
+                <Textarea value={problemStatement.outputs} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
                 <h3 className="font-semibold mt-2 font-headline">Example:</h3>
-                <Textarea value={problemStatement.example} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
+                <Textarea value={problemStatement.example} readOnly rows={10} className="bg-muted/50 font-code resize-y"/>
                 {problemStatement.notes && (
                   <>
                     <h3 className="font-semibold mt-2 font-headline">Notes:</h3>
-                    <Textarea value={problemStatement.notes} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
+                    <Textarea value={problemStatement.notes} readOnly rows={6} className="bg-muted/50 font-code resize-y"/>
                   </>
                 )}
               </div>
@@ -299,7 +354,7 @@ export default function PsForgePage() {
             <SectionCard title="Statement Evaluation" icon={SearchCheck}
               description={`Quality Score: ${statementEvaluation.qualityScore.toFixed(2)}/1.0 - Suitable: ${statementEvaluation.isSuitable ? 'Yes' : 'No'}`}>
               <p className="font-semibold font-headline">Feedback:</p>
-              <Textarea value={statementEvaluation.feedback} readOnly rows={8} className="bg-muted/50 resize-y"/>
+              <Textarea value={statementEvaluation.feedback} readOnly rows={10} className="bg-muted/50 font-code resize-y"/>
             </SectionCard>
 
             <div className="flex justify-center space-x-4 mt-6">
@@ -323,7 +378,7 @@ export default function PsForgePage() {
 
         {currentStep === AppStep.REVIEW_FULL_PROBLEM && problemStatement && generatedCodes && fullProblemEvaluation && (
           <>
-            <SectionCard title={problemStatement.title} icon={Info}>
+            <SectionCard title={problemStatement.title || "Generated Problem Statement"} icon={Info}>
               <div className="space-y-2">
                 <div><strong>Time Limit:</strong> {problemStatement.timeLimit}</div>
                 <div><strong>Memory Limit:</strong> {problemStatement.memoryLimit}</div>
@@ -331,17 +386,17 @@ export default function PsForgePage() {
                   <summary className="cursor-pointer font-semibold hover:text-primary">View Full Statement Details</summary>
                   <div className="mt-2 space-y-2 pl-4 border-l-2 border-primary/50">
                     <h3 className="font-semibold mt-2 font-headline">Legend:</h3>
-                    <Textarea value={problemStatement.legend} readOnly rows={10} className="bg-muted/50 font-code resize-y"/>
+                    <Textarea value={problemStatement.legend} readOnly rows={12} className="bg-muted/50 font-code resize-y"/>
                     <h3 className="font-semibold mt-2 font-headline">Inputs:</h3>
-                    <Textarea value={problemStatement.inputs} readOnly rows={7} className="bg-muted/50 font-code resize-y"/>
+                    <Textarea value={problemStatement.inputs} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
                     <h3 className="font-semibold mt-2 font-headline">Outputs:</h3>
-                    <Textarea value={problemStatement.outputs} readOnly rows={7} className="bg-muted/50 font-code resize-y"/>
+                    <Textarea value={problemStatement.outputs} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
                     <h3 className="font-semibold mt-2 font-headline">Example:</h3>
-                    <Textarea value={problemStatement.example} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
+                    <Textarea value={problemStatement.example} readOnly rows={10} className="bg-muted/50 font-code resize-y"/>
                     {problemStatement.notes && (
                       <>
                         <h3 className="font-semibold mt-2 font-headline">Notes:</h3>
-                        <Textarea value={problemStatement.notes} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
+                        <Textarea value={problemStatement.notes} readOnly rows={6} className="bg-muted/50 font-code resize-y"/>
                       </>
                     )}
                   </div>
@@ -356,7 +411,7 @@ export default function PsForgePage() {
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
                 }>
-                  <Textarea value={generatedCodes.inputGeneratorCode} readOnly rows={15} className="font-code text-xs bg-muted/50 resize-y"/>
+                  <Textarea value={generatedCodes.inputGeneratorCode} readOnly rows={18} className="font-code bg-muted/50 resize-y"/>
                 </SectionCard>
               )}
               {generatedCodes.validatorCode && (
@@ -365,7 +420,7 @@ export default function PsForgePage() {
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
                 }>
-                  <Textarea value={generatedCodes.validatorCode} readOnly rows={15} className="font-code text-xs bg-muted/50 resize-y"/>
+                  <Textarea value={generatedCodes.validatorCode} readOnly rows={18} className="font-code bg-muted/50 resize-y"/>
                 </SectionCard>
               )}
               {generatedCodes.solutionCode && (
@@ -374,7 +429,7 @@ export default function PsForgePage() {
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
                 }>
-                  <Textarea value={generatedCodes.solutionCode} readOnly rows={15} className="font-code text-xs bg-muted/50 resize-y"/>
+                  <Textarea value={generatedCodes.solutionCode} readOnly rows={18} className="font-code bg-muted/50 resize-y"/>
                 </SectionCard>
               )}
             </div>
@@ -386,11 +441,11 @@ export default function PsForgePage() {
               className={fullProblemEvaluation.errorsFound ? "border-destructive" : "border-green-500"}
             >
               <h3 className="font-semibold font-headline">Overall Assessment:</h3>
-              <Textarea value={fullProblemEvaluation.overallAssessment} readOnly rows={10} className="bg-muted/50 resize-y"/>
+              <Textarea value={fullProblemEvaluation.overallAssessment} readOnly rows={10} className="bg-muted/50 font-code resize-y"/>
               {fullProblemEvaluation.suggestions && (
                 <>
                   <h3 className="font-semibold mt-2 font-headline">Suggestions:</h3>
-                  <Textarea value={fullProblemEvaluation.suggestions} readOnly rows={6} className="bg-muted/50 resize-y"/>
+                  <Textarea value={fullProblemEvaluation.suggestions} readOnly rows={6} className="bg-muted/50 font-code resize-y"/>
                 </>
               )}
             </SectionCard>

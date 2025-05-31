@@ -12,81 +12,78 @@ interface StepperProps {
 export function Stepper({ currentStep, steps }: StepperProps) {
   return (
     <nav aria-label="Progress">
-      <ol role="list" className="flex items-center justify-around w-full">
+      <ol role="list" className="flex items-start justify-between w-full">
         {steps.map((step, stepIdx) => (
           <li
             key={step.name}
             className={cn(
-              "relative flex-shrink-0", // Let items shrink if needed, but try to give them space via justify-around
-              stepIdx !== steps.length - 1 ? "pr-5 sm:pr-10 md:pr-16" : "" // Adjusted padding for connector lines
+              "relative flex-1 flex flex-col items-center", // flex-1 to distribute space
+              stepIdx !== steps.length - 1 ? "pr-4" : "" // Minimal padding for line end
             )}
           >
-            {step.id < currentStep ? (
-              <>
-                {stepIdx !== steps.length - 1 && (
+            <div className="flex flex-col items-center"> {/* Wrapper for circle and text */}
+              {step.id < currentStep ? (
+                // Completed Step
+                <>
+                  {stepIdx !== steps.length - 1 && (
+                    <div
+                      className="absolute left-1/2 top-4 h-0.5 w-full bg-primary translate-x-0" // Line starts from center of current, extends full width of li's flex space
+                      aria-hidden="true"
+                    />
+                  )}
                   <div
-                    className="absolute inset-0 left-1/2 top-[15px] flex items-center" // Position line from center of current to next
-                    aria-hidden="true"
+                    className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground z-10"
                   >
-                    <div className="h-0.5 w-full bg-primary transform -translate-y-1/2" />
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                   </div>
-                )}
-                <div
-                  className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                  <span className="sr-only">{step.name}</span>
-                </div>
-              </>
-            ) : step.id === currentStep ? (
-              <>
-                {stepIdx !== steps.length - 1 && (
+                </>
+              ) : step.id === currentStep ? (
+                // Current Step
+                <>
+                  {stepIdx !== steps.length - 1 && (
+                    <div
+                      className="absolute left-1/2 top-4 h-0.5 w-full bg-gray-200 translate-x-0"
+                      aria-hidden="true"
+                    />
+                  )}
                   <div
-                    className="absolute inset-0 left-1/2 top-[15px] flex items-center"
-                    aria-hidden="true"
+                    className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-background text-primary z-10"
+                    aria-current="step"
                   >
-                    <div className="h-0.5 w-full bg-gray-200 transform -translate-y-1/2" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-primary" />
                   </div>
-                )}
-                <div
-                  className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-background text-primary"
-                  aria-current="step"
-                >
-                  <span className="h-2.5 w-2.5 rounded-full bg-primary" />
-                  <span className="sr-only">{step.name}</span>
-                </div>
-              </>
-            ) : (
-              <>
-                {stepIdx !== steps.length - 1 && (
-                   <div
-                    className="absolute inset-0 left-1/2 top-[15px] flex items-center"
-                    aria-hidden="true"
+                </>
+              ) : (
+                // Future Step
+                <>
+                  {stepIdx !== steps.length - 1 && (
+                     <div
+                      className="absolute left-1/2 top-4 h-0.5 w-full bg-gray-200 translate-x-0"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <div
+                    className="group relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-gray-300 bg-background hover:border-gray-400 z-10"
                   >
-                    <div className="h-0.5 w-full bg-gray-200 transform -translate-y-1/2" />
+                    <span
+                      className="h-2.5 w-2.5 rounded-full bg-transparent group-hover:bg-gray-300"
+                      aria-hidden="true"
+                    />
                   </div>
-                )}
-                <div
-                  className="group relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-gray-300 bg-background hover:border-gray-400"
-                >
-                  <span
-                    className="h-2.5 w-2.5 rounded-full bg-transparent group-hover:bg-gray-300"
-                    aria-hidden="true"
-                  />
-                  <span className="sr-only">{step.name}</span>
-                </div>
-              </>
-            )}
-            <p className={cn(
-                "absolute pt-2 text-xs text-center -translate-x-1/2 left-1/2 whitespace-nowrap", 
-                step.id <= currentStep ? "font-medium text-primary" : "text-muted-foreground"
+                </>
               )}
-            >
-              {step.name}
-            </p>
+              <p className={cn(
+                  "mt-2 text-xs text-center w-28 break-words", // Increased top margin, fixed width, allow word break
+                  step.id <= currentStep ? "font-medium text-primary" : "text-muted-foreground"
+                )}
+              >
+                {step.name}
+              </p>
+            </div>
           </li>
         ))}
       </ol>
     </nav>
   );
 }
+
