@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -157,7 +158,7 @@ export default function PsForgePage() {
         </p>
       </header>
 
-      <div className="w-full max-w-3xl mb-12">
+      <div className="w-full max-w-4xl mb-12">
         <Stepper currentStep={currentStep} steps={STEPS} />
       </div>
 
@@ -218,17 +219,17 @@ export default function PsForgePage() {
                 <div><strong>Time Limit:</strong> {problemStatement.timeLimit}</div>
                 <div><strong>Memory Limit:</strong> {problemStatement.memoryLimit}</div>
                 <h3 className="font-semibold mt-2 font-headline">Legend:</h3>
-                <Textarea value={problemStatement.legend} readOnly rows={5} className="bg-muted/50 font-code"/>
+                <Textarea value={problemStatement.legend} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
                 <h3 className="font-semibold mt-2 font-headline">Inputs:</h3>
-                <Textarea value={problemStatement.inputs} readOnly rows={3} className="bg-muted/50 font-code"/>
+                <Textarea value={problemStatement.inputs} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
                 <h3 className="font-semibold mt-2 font-headline">Outputs:</h3>
-                <Textarea value={problemStatement.outputs} readOnly rows={3} className="bg-muted/50 font-code"/>
+                <Textarea value={problemStatement.outputs} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
                 <h3 className="font-semibold mt-2 font-headline">Example:</h3>
-                <Textarea value={problemStatement.example} readOnly rows={4} className="bg-muted/50 font-code"/>
+                <Textarea value={problemStatement.example} readOnly rows={6} className="bg-muted/50 font-code resize-y"/>
                 {problemStatement.notes && (
                   <>
                     <h3 className="font-semibold mt-2 font-headline">Notes:</h3>
-                    <Textarea value={problemStatement.notes} readOnly rows={2} className="bg-muted/50 font-code"/>
+                    <Textarea value={problemStatement.notes} readOnly rows={4} className="bg-muted/50 font-code resize-y"/>
                   </>
                 )}
               </div>
@@ -237,7 +238,7 @@ export default function PsForgePage() {
             <SectionCard title="Statement Evaluation" icon={SearchCheck}
               description={`Quality Score: ${statementEvaluation.qualityScore.toFixed(2)}/1.0 - Suitable: ${statementEvaluation.isSuitable ? 'Yes' : 'No'}`}>
               <p className="font-semibold font-headline">Feedback:</p>
-              <Textarea value={statementEvaluation.feedback} readOnly rows={4} className="bg-muted/50"/>
+              <Textarea value={statementEvaluation.feedback} readOnly rows={6} className="bg-muted/50 resize-y"/>
             </SectionCard>
 
             <div className="flex justify-center space-x-4 mt-6">
@@ -269,17 +270,17 @@ export default function PsForgePage() {
                   <summary className="cursor-pointer font-semibold hover:text-primary">View Full Statement Details</summary>
                   <div className="mt-2 space-y-2 pl-4 border-l-2 border-primary/50">
                     <h3 className="font-semibold mt-2 font-headline">Legend:</h3>
-                    <Textarea value={problemStatement.legend} readOnly rows={5} className="bg-muted/50 font-code"/>
+                    <Textarea value={problemStatement.legend} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
                     <h3 className="font-semibold mt-2 font-headline">Inputs:</h3>
-                    <Textarea value={problemStatement.inputs} readOnly rows={3} className="bg-muted/50 font-code"/>
+                    <Textarea value={problemStatement.inputs} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
                     <h3 className="font-semibold mt-2 font-headline">Outputs:</h3>
-                    <Textarea value={problemStatement.outputs} readOnly rows={3} className="bg-muted/50 font-code"/>
+                    <Textarea value={problemStatement.outputs} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
                     <h3 className="font-semibold mt-2 font-headline">Example:</h3>
-                    <Textarea value={problemStatement.example} readOnly rows={4} className="bg-muted/50 font-code"/>
+                    <Textarea value={problemStatement.example} readOnly rows={6} className="bg-muted/50 font-code resize-y"/>
                     {problemStatement.notes && (
                       <>
                         <h3 className="font-semibold mt-2 font-headline">Notes:</h3>
-                        <Textarea value={problemStatement.notes} readOnly rows={2} className="bg-muted/50 font-code"/>
+                        <Textarea value={problemStatement.notes} readOnly rows={4} className="bg-muted/50 font-code resize-y"/>
                       </>
                     )}
                   </div>
@@ -294,7 +295,7 @@ export default function PsForgePage() {
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
                 }>
-                  <Textarea value={generatedCodes.inputGeneratorCode} readOnly rows={10} className="font-code text-xs bg-muted/50"/>
+                  <Textarea value={generatedCodes.inputGeneratorCode} readOnly rows={12} className="font-code text-xs bg-muted/50 resize-y"/>
                 </SectionCard>
               )}
               {generatedCodes.validatorCode && (
@@ -303,7 +304,7 @@ export default function PsForgePage() {
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
                 }>
-                  <Textarea value={generatedCodes.validatorCode} readOnly rows={10} className="font-code text-xs bg-muted/50"/>
+                  <Textarea value={generatedCodes.validatorCode} readOnly rows={12} className="font-code text-xs bg-muted/50 resize-y"/>
                 </SectionCard>
               )}
               {generatedCodes.solutionCode && (
@@ -312,7 +313,7 @@ export default function PsForgePage() {
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
                 }>
-                  <Textarea value={generatedCodes.solutionCode} readOnly rows={10} className="font-code text-xs bg-muted/50"/>
+                  <Textarea value={generatedCodes.solutionCode} readOnly rows={12} className="font-code text-xs bg-muted/50 resize-y"/>
                 </SectionCard>
               )}
             </div>
@@ -324,11 +325,11 @@ export default function PsForgePage() {
               className={fullProblemEvaluation.errorsFound ? "border-destructive" : "border-green-500"}
             >
               <h3 className="font-semibold font-headline">Overall Assessment:</h3>
-              <Textarea value={fullProblemEvaluation.overallAssessment} readOnly rows={5} className="bg-muted/50"/>
+              <Textarea value={fullProblemEvaluation.overallAssessment} readOnly rows={8} className="bg-muted/50 resize-y"/>
               {fullProblemEvaluation.suggestions && (
                 <>
                   <h3 className="font-semibold mt-2 font-headline">Suggestions:</h3>
-                  <Textarea value={fullProblemEvaluation.suggestions} readOnly rows={3} className="bg-muted/50"/>
+                  <Textarea value={fullProblemEvaluation.suggestions} readOnly rows={5} className="bg-muted/50 resize-y"/>
                 </>
               )}
             </SectionCard>
@@ -356,3 +357,5 @@ export default function PsForgePage() {
     </div>
   );
 }
+
+    
