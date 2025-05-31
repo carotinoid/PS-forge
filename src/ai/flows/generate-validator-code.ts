@@ -45,8 +45,8 @@ const generateValidatorCodePrompt = ai.definePrompt({
   The validator must ensure the input strictly adheres to all format and constraint details specified in the problem statement.
   It is crucial to use 'testlib.h' utilities for robust validation.
   - For reading inputs, use methods like \`inf.readInt()\`, \`inf.readSpace()\`, \`inf.readEoln()\`, etc.
-  - For checks, you can use \`inf.ensure(condition, "format string...", args...)\` to assert conditions with custom formatted messages.
-  - If a validation fails, the program must exit with a non-zero code. This is typically done by calling an appropriate \`quitf(_wa, "Error message about specific validation failure: %s was %d", variableName, variableValue);\` function from testlib.h. This provides the most descriptive error.
+  - For checks, you MUST use \`inf.ensuref(condition, "format string with placeholders for values like %d, %s, etc.", corresponding_variables...)\` to assert conditions. This function provides descriptive error messages when a condition fails.
+  - If a validation fails and you need to exit immediately with a very specific message that might not fit \`ensuref\` well, you can use \`quitf(_wa, "Error message: %s was %d", variableName, variableValue);\` or similar \`quitf\` variants from testlib.h.
   The validator code should read from standard input (via the \`inf\` object from testlib.h).
   It must call \`registerValidation(argc, argv);\` at the beginning of main.
   If the input is valid according to all problem constraints, it must eventually call \`inf.readEof();\` and then typically return 0 (e.g., by main function ending).
@@ -56,7 +56,7 @@ const generateValidatorCodePrompt = ai.definePrompt({
 
   Ensure the generated code is efficient, correct, and adheres to best practices for competitive programming validators using testlib.h.
   Include necessary headers, primarily \`#include "testlib.h"\`.
-  Focus on providing clear, specific error messages for each validation check, ideally using \`quitf\` or the formatted version of \`inf.ensure\`.
+  Focus on providing clear, specific error messages for each validation check using \`inf.ensuref\` or \`quitf\` from testlib.h.
   `,
 });
 
