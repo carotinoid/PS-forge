@@ -5,7 +5,7 @@ import * as React from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Cpu, Settings2, Tags, Wand2, ThumbsUp, RefreshCcw, FileOutput, FileCheck, FileCode2, ClipboardCopy, SearchCheck, Info, CheckCircle2, AlertTriangle, Thermometer } from "lucide-react";
+import { Cpu, Settings2, Tags, Wand2, ThumbsUp, RefreshCcw, FileOutput, FileCheck, FileCode2, ClipboardCopy, SearchCheck, Info, CheckCircle2, AlertTriangle, Thermometer, Lightbulb, Edit3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -32,7 +32,7 @@ import { SectionCard } from "@/components/ps-forge/SectionCard";
 
 
 const formSchema = z.object({
-  difficulty: z.enum(DIFFICULTIES, { required_error: "Please select a difficulty." }),
+  difficulty: z.string({ required_error: "Please select a difficulty." }),
   algorithmTags: z.string().min(1, "Please enter at least one algorithm tag."),
   temperature: z.preprocess(
     (val) => {
@@ -42,6 +42,8 @@ const formSchema = z.object({
     },
     z.number().min(0).max(1).optional()
   ),
+  titleIdea: z.string().optional(),
+  problemIdea: z.string().optional(),
 });
 
 type UserInputFormValues = z.infer<typeof formSchema>;
@@ -57,30 +59,30 @@ async function callAIFlowWithRetry<T_Input, T_Output>(
   input: T_Input,
   flowName: string,
   setLoadingMessage: (message: string) => void,
-  toastFn: ReturnType<typeof useToast>['toast'], // Renamed to avoid conflict
+  toastFn: ReturnType<typeof useToast>['toast'], 
   maxRetries: number = 3,
-  initialDelay: number = 2000 // 2 seconds
+  initialDelay: number = 2000 
 ): Promise<T_Output> {
   let attempts = 0;
   while (attempts < maxRetries) {
     try {
       let loadingMsg;
-      if (attempts === 0) { // First try
+      if (attempts === 0) { 
           loadingMsg = `Generating ${flowName}...`;
-      } else if (attempts === 1) { // Second try (first retry)
+      } else if (attempts === 1) { 
           loadingMsg = `Generating ${flowName}... (Retrying...)`;
-      } else { // Third try onwards (second retry onwards)
+      } else { 
           loadingMsg = `Generating ${flowName}... (Attempt ${attempts + 1})`;
       }
       setLoadingMessage(loadingMsg);
       return await flowFunction(input);
     } catch (error: any) {
       const currentAttemptForToast = attempts + 1;
-      attempts++; // Increment attempts for the next loop iteration or for maxRetries check
+      attempts++; 
       const isLastAttempt = attempts >= maxRetries;
       const errorMessage = error.message || 'Unknown error';
 
-      toastFn({ // Use the renamed toastFn
+      toastFn({ 
         variant: isLastAttempt ? "destructive" : "default",
         title: `AI Request: ${flowName} ${isLastAttempt ? 'Failed' : `Attempt ${currentAttemptForToast} Failed`}`,
         description: isLastAttempt 
@@ -92,18 +94,17 @@ async function callAIFlowWithRetry<T_Input, T_Output>(
         throw error;
       }
 
-      const waitTime = Math.pow(2, attempts -1) * initialDelay; // Exponential backoff using the updated attempts
+      const waitTime = Math.pow(2, attempts -1) * initialDelay; 
       setLoadingMessage(`Attempt ${currentAttemptForToast} for ${flowName} failed. Retrying in ${waitTime / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
-  // This line should ideally not be reached if logic is correct
   throw new Error(`Max retries reached for ${flowName}, but error not re-thrown properly.`);
 }
 
 
 export default function PsForgePage() {
-  const { toast } = useToast(); // Original toast hook for general use
+  const { toast } = useToast(); 
   const [currentStep, setCurrentStep] = React.useState<AppStep>(AppStep.USER_INPUT);
   const [isLoading, setIsLoading] = React.useState(false);
   const [loadingMessage, setLoadingMessage] = React.useState("Generating...");
@@ -116,9 +117,11 @@ export default function PsForgePage() {
   const form = useForm<UserInputFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      difficulty: "Medium",
+      difficulty: "Gold V", // Default to mid-range
       algorithmTags: "",
-      temperature: 0.7, // Default temperature
+      temperature: 0.7, 
+      titleIdea: "",
+      problemIdea: "",
     },
   });
 
@@ -127,7 +130,13 @@ export default function PsForgePage() {
     try {
       const statement = await callAIFlowWithRetry(
         generateProblemStatement,
-        { difficulty: data.difficulty, algorithmTags: data.algorithmTags, temperature: data.temperature },
+        { 
+          difficulty: data.difficulty, 
+          algorithmTags: data.algorithmTags, 
+          temperature: data.temperature,
+          titleIdea: data.titleIdea,
+          problemIdea: data.problemIdea,
+        },
         "Problem Statement",
         setLoadingMessage,
         toast 
@@ -232,8 +241,11 @@ export default function PsForgePage() {
           <Cpu className="h-12 w-12 text-primary" />
           <h1 className="text-5xl font-headline font-bold text-primary">PS Forge</h1>
         </div>
-        <p className="text-xs text-muted-foreground/90 mb-3">
+        <p className="text-xs text-muted-foreground/90 mb-1">
           Using model: googleai/gemini-2.0-flash
+        </p>
+        <p className="text-xs text-amber-600 dark:text-amber-400 mb-3">
+          Note: This tool utilizes free-tier AI API access, which may have usage limits. Service interruptions are possible.
         </p>
         <p className="text-lg text-muted-foreground font-body">
           Automated Algorithm Problem Generator - Crafting challenges with AI.
@@ -246,7 +258,7 @@ export default function PsForgePage() {
 
       <main className="w-full max-w-4xl space-y-8">
         {currentStep === AppStep.USER_INPUT && (
-          <SectionCard title="Configure Problem" icon={Settings2} description="Specify the desired difficulty, algorithm tags, and AI creativity for your problem.">
+          <SectionCard title="Configure Problem" icon={Settings2} description="Specify the desired difficulty, algorithm tags, AI creativity, and any initial ideas for your problem.">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleGenerateStatement)} className="space-y-6">
                 <FormField
@@ -274,12 +286,58 @@ export default function PsForgePage() {
                   name="algorithmTags"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Algorithm Tags</FormLabel>
+                      <FormLabel className="flex items-center">
+                        <Tags className="mr-2 h-4 w-4 text-primary/80" />
+                        Algorithm Tags
+                      </FormLabel>
                       <FormControl>
                         <Input placeholder="e.g., Dynamic Programming, Graph Theory, BFS" {...field} />
                       </FormControl>
                       <FormDescription>
                         Comma-separated list of relevant algorithms.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="titleIdea"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center">
+                        <Edit3 className="mr-2 h-4 w-4 text-primary/80" />
+                        Problem Title Idea (Optional)
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., The Magical Forest Journey" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Suggest a title for the problem. The AI will consider it.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="problemIdea"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center">
+                        <Lightbulb className="mr-2 h-4 w-4 text-primary/80" />
+                        Problem Idea/Keywords (Optional)
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="e.g., A knight must find the shortest path in a grid with obstacles, avoiding dragons." 
+                          {...field} 
+                          rows={3}
+                          className="resize-y"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Provide some keywords or a brief concept for the problem.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

@@ -15,11 +15,13 @@ import {z}from 'genkit';
 const GenerateProblemStatementInputSchema = z.object({
   difficulty: z
     .string()
-    .describe('The difficulty level of the problem (e.g., Easy, Medium, Hard).'),
+    .describe('The difficulty level of the problem (e.g., Bronze V, Silver II, Gold I, etc.). This indicates a specific rank within a tier.'),
   algorithmTags: z
     .string()
     .describe('Comma-separated list of relevant algorithms (e.g., Dynamic Programming, Graph Theory).'),
   temperature: z.number().min(0).max(1).optional().describe('Optional. The creativity temperature for the AI model (0.0 to 1.0). Higher values mean more creative/random, lower values mean more deterministic. If not provided, model default is used.'),
+  titleIdea: z.string().optional().describe('Optional. A user-suggested idea for the problem title.'),
+  problemIdea: z.string().optional().describe('Optional. User-provided keywords or a brief idea for the problem content.'),
 });
 export type GenerateProblemStatementInput = z.infer<
   typeof GenerateProblemStatementInputSchema
@@ -51,10 +53,10 @@ const prompt = ai.definePrompt({
   input: {schema: GenerateProblemStatementInputSchema},
   output: {schema: GenerateProblemStatementOutputSchema},
   prompt: `You are an expert problem setter for competitive programming contests.
-  Your task is to generate a problem statement based on the given difficulty and algorithm tags.
+  Your task is to generate a problem statement based on the given difficulty, algorithm tags, and optional user ideas.
   The problem statement should include the following sections:
 
-  - Title: A concise and descriptive title for the problem.
+  - Title: A concise and descriptive title for the problem. {{#if titleIdea}}Consider this user suggestion for the title: {{{titleIdea}}}{{/if}}
   - Time Limit: The time limit for the solution to run (e.g., 1 second).
   - Memory Limit: The memory limit for the solution to use (e.g., 256 MB).
   - Legend: A clear and engaging description of the problem. Use LaTeX format. Mathematical expressions should be enclosed in $ symbols (e.g., $x^2 + y^2 = z^2$).
@@ -63,12 +65,14 @@ const prompt = ai.definePrompt({
   - Example: An example input and its corresponding output. Use LaTeX format. Mathematical expressions should be enclosed in $ symbols.
   - Notes: Any additional notes or constraints for the problem. Use LaTeX format. Mathematical expressions should be enclosed in $ symbols.
 
-  Difficulty: {{{difficulty}}}
+  Difficulty: {{{difficulty}}} (This is a specific level, e.g., Bronze V is easier than Bronze I, Silver V is easier than Silver I).
   Algorithm Tags: {{{algorithmTags}}}
+  {{#if problemIdea}}User-provided idea/keywords to consider: {{{problemIdea}}}{{/if}}
 
   Please generate a creative, interesting and well-defined problem statement.
   Ensure that the problem is solvable within the given time and memory limits.
   The problem should align with the specified difficulty and algorithm tags.
+  If the user provided a title idea or problem idea, try to incorporate it naturally while ensuring the problem quality.
 
   Output the problem statement in the specified structured format. For the Legend, Inputs, Outputs, Example, and Notes sections, ensure content uses LaTeX syntax where appropriate, especially for mathematical formulas (e.g., $O(N \log N)$).
 `,

@@ -34,5 +34,18 @@ export enum AppStep {
   REVIEW_FULL_PROBLEM,
 }
 
-export const DIFFICULTIES = ["Easy", "Medium", "Hard"] as const;
+const TIERS = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ruby"] as const;
+const LEVELS = ["V", "IV", "III", "II", "I"] as const;
+
+const generateDifficulties = () => {
+  const difficulties: string[] = [];
+  TIERS.forEach(tier => {
+    LEVELS.forEach(level => {
+      difficulties.push(`${tier} ${level}`);
+    });
+  });
+  return difficulties;
+};
+
+export const DIFFICULTIES = generateDifficulties();
 export type Difficulty = (typeof DIFFICULTIES)[number];
