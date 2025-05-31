@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
-import type { ProblemStatement, StatementEvaluation, GeneratedCodes, FullProblemEvaluation, Difficulty } from "@/types";
+import type { ProblemStatement, StatementEvaluation, GeneratedCodes, FullProblemEvaluation } from "@/types";
 import { AppStep, DIFFICULTIES } from "@/types";
 
 import { generateProblemStatement } from "@/ai/flows/generate-problem-statement";
@@ -42,6 +42,47 @@ const STEPS = [
   { id: AppStep.REVIEW_FULL_PROBLEM, name: "Review Problem" },
 ];
 
+async function callAIFlowWithRetry<T_Input, T_Output>(
+  flowFunction: (input: T_Input) => Promise<T_Output>,
+  input: T_Input,
+  flowName: string,
+  setLoadingMessage: (message: string) => void,
+  toast: ReturnType<typeof useToast>['toast'],
+  maxRetries: number = 3,
+  initialDelay: number = 2000 // 2 seconds
+): Promise<T_Output> {
+  let attempts = 0;
+  while (attempts < maxRetries) {
+    try {
+      setLoadingMessage(`Generating ${flowName}... (Attempt ${attempts + 1})`);
+      return await flowFunction(input);
+    } catch (error: any) {
+      attempts++;
+      const isLastAttempt = attempts >= maxRetries;
+      const errorMessage = error.message || 'Unknown error';
+
+      toast({
+        variant: isLastAttempt ? "destructive" : "default",
+        title: `AI Request: ${flowName} ${isLastAttempt ? 'Failed' : 'Attempt Failed'}`,
+        description: isLastAttempt 
+          ? `After ${maxRetries} attempts, the request could not be completed. Error: ${errorMessage}`
+          : `Attempt ${attempts} for ${flowName} encountered an issue. Retrying...`,
+      });
+
+      if (isLastAttempt) {
+        throw error;
+      }
+
+      const waitTime = Math.pow(2, attempts -1) * initialDelay; // Exponential backoff
+      setLoadingMessage(`Attempt ${attempts} for ${flowName} failed. Retrying in ${waitTime / 1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+  // This line should ideally not be reached if logic is correct
+  throw new Error(`Max retries reached for ${flowName}, but error not re-thrown properly.`);
+}
+
+
 export default function PsForgePage() {
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = React.useState<AppStep>(AppStep.USER_INPUT);
@@ -63,24 +104,31 @@ export default function PsForgePage() {
 
   const handleGenerateStatement: SubmitHandler<UserInputFormValues> = async (data) => {
     setIsLoading(true);
-    setLoadingMessage("Generating problem statement...");
     try {
-      const statement = await generateProblemStatement({
-        difficulty: data.difficulty,
-        algorithmTags: data.algorithmTags,
-      });
+      const statement = await callAIFlowWithRetry(
+        generateProblemStatement,
+        { difficulty: data.difficulty, algorithmTags: data.algorithmTags },
+        "Problem Statement",
+        setLoadingMessage,
+        toast
+      );
       setProblemStatement(statement);
       toast({ title: "Statement Generated", description: "Problem statement created successfully." });
 
-      setLoadingMessage("Evaluating statement...");
-      const evaluation = await evaluateProblemStatement({ problemStatement: JSON.stringify(statement) });
+      const evaluation = await callAIFlowWithRetry(
+        evaluateProblemStatement,
+        { problemStatement: JSON.stringify(statement) },
+        "Statement Evaluation",
+        setLoadingMessage,
+        toast
+      );
       setStatementEvaluation(evaluation);
       toast({ title: "Statement Evaluated", description: "Evaluation complete." });
       
       setCurrentStep(AppStep.REVIEW_STATEMENT);
     } catch (error) {
       console.error("Error generating or evaluating statement:", error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to generate or evaluate statement." });
+      // Toast for final failure is handled by callAIFlowWithRetry
     }
     setIsLoading(false);
   };
@@ -91,42 +139,55 @@ export default function PsForgePage() {
       return;
     }
     setIsLoading(true);
-    setLoadingMessage("Generating code files...");
     try {
-      const [inputCode, validatorCode, solutionCode] = await Promise.all([
-        generateInputCode({ inputFormat: problemStatement.inputs, problemStatement: JSON.stringify(problemStatement) }),
-        generateValidatorCode({ problemStatement: JSON.stringify(problemStatement) }),
-        generateSolutionCode({ problemStatement: JSON.stringify(problemStatement) }),
+      const [inputCodeResult, validatorCodeResult, solutionCodeResult] = await Promise.all([
+        callAIFlowWithRetry(
+          generateInputCode, 
+          { inputFormat: problemStatement.inputs, problemStatement: JSON.stringify(problemStatement) },
+          "Input Code", setLoadingMessage, toast
+        ),
+        callAIFlowWithRetry(
+          generateValidatorCode,
+          { problemStatement: JSON.stringify(problemStatement) },
+          "Validator Code", setLoadingMessage, toast
+        ),
+        callAIFlowWithRetry(
+          generateSolutionCode,
+          { problemStatement: JSON.stringify(problemStatement) },
+          "Solution Code", setLoadingMessage, toast
+        ),
       ]);
       
       const codes: GeneratedCodes = {
-        inputGeneratorCode: inputCode.cppCode,
-        validatorCode: validatorCode.validatorCode,
-        solutionCode: solutionCode.solutionCode,
+        inputGeneratorCode: inputCodeResult.cppCode,
+        validatorCode: validatorCodeResult.validatorCode,
+        solutionCode: solutionCodeResult.solutionCode,
       };
       setGeneratedCodes(codes);
       toast({ title: "Codes Generated", description: "Input, Validator, and Solution code generated." });
 
-      setLoadingMessage("Performing full evaluation...");
-      const fullEval = await evaluateFullProblem({
-        statement: JSON.stringify(problemStatement),
-        inputs: inputCode.cppCode,
-        validator: validatorCode.validatorCode,
-        solution: solutionCode.solutionCode,
-      });
+      const fullEval = await callAIFlowWithRetry(
+        evaluateFullProblem,
+        {
+          statement: JSON.stringify(problemStatement),
+          inputs: codes.inputGeneratorCode || "", // Provide empty string if undefined
+          validator: codes.validatorCode || "",
+          solution: codes.solutionCode || "",
+        },
+        "Full Problem Evaluation", setLoadingMessage, toast
+      );
       setFullProblemEvaluation(fullEval);
       toast({ title: "Full Evaluation Complete", description: "The entire problem package has been assessed." });
 
       setCurrentStep(AppStep.REVIEW_FULL_PROBLEM);
     } catch (error) {
       console.error("Error generating codes or full evaluation:", error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to generate codes or perform full evaluation." });
+      // Toast for final failure is handled by callAIFlowWithRetry
     }
     setIsLoading(false);
   };
 
   const handleRegenerateStatement = () => {
-    // Keep form values, just re-submit
     form.handleSubmit(handleGenerateStatement)();
   };
   
@@ -214,22 +275,22 @@ export default function PsForgePage() {
 
         {currentStep === AppStep.REVIEW_STATEMENT && problemStatement && statementEvaluation && (
           <>
-            <SectionCard title="Generated Problem Statement" icon={Info} description={problemStatement.title}>
+            <SectionCard title={problemStatement.title} icon={Info}>
               <div className="space-y-4">
                 <div><strong>Time Limit:</strong> {problemStatement.timeLimit}</div>
                 <div><strong>Memory Limit:</strong> {problemStatement.memoryLimit}</div>
                 <h3 className="font-semibold mt-2 font-headline">Legend:</h3>
-                <Textarea value={problemStatement.legend} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
+                <Textarea value={problemStatement.legend} readOnly rows={10} className="bg-muted/50 font-code resize-y"/>
                 <h3 className="font-semibold mt-2 font-headline">Inputs:</h3>
-                <Textarea value={problemStatement.inputs} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
+                <Textarea value={problemStatement.inputs} readOnly rows={7} className="bg-muted/50 font-code resize-y"/>
                 <h3 className="font-semibold mt-2 font-headline">Outputs:</h3>
-                <Textarea value={problemStatement.outputs} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
+                <Textarea value={problemStatement.outputs} readOnly rows={7} className="bg-muted/50 font-code resize-y"/>
                 <h3 className="font-semibold mt-2 font-headline">Example:</h3>
-                <Textarea value={problemStatement.example} readOnly rows={6} className="bg-muted/50 font-code resize-y"/>
+                <Textarea value={problemStatement.example} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
                 {problemStatement.notes && (
                   <>
                     <h3 className="font-semibold mt-2 font-headline">Notes:</h3>
-                    <Textarea value={problemStatement.notes} readOnly rows={4} className="bg-muted/50 font-code resize-y"/>
+                    <Textarea value={problemStatement.notes} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
                   </>
                 )}
               </div>
@@ -238,7 +299,7 @@ export default function PsForgePage() {
             <SectionCard title="Statement Evaluation" icon={SearchCheck}
               description={`Quality Score: ${statementEvaluation.qualityScore.toFixed(2)}/1.0 - Suitable: ${statementEvaluation.isSuitable ? 'Yes' : 'No'}`}>
               <p className="font-semibold font-headline">Feedback:</p>
-              <Textarea value={statementEvaluation.feedback} readOnly rows={6} className="bg-muted/50 resize-y"/>
+              <Textarea value={statementEvaluation.feedback} readOnly rows={8} className="bg-muted/50 resize-y"/>
             </SectionCard>
 
             <div className="flex justify-center space-x-4 mt-6">
@@ -262,7 +323,7 @@ export default function PsForgePage() {
 
         {currentStep === AppStep.REVIEW_FULL_PROBLEM && problemStatement && generatedCodes && fullProblemEvaluation && (
           <>
-            <SectionCard title="Generated Problem Statement" icon={Info} description={problemStatement.title}>
+            <SectionCard title={problemStatement.title} icon={Info}>
               <div className="space-y-2">
                 <div><strong>Time Limit:</strong> {problemStatement.timeLimit}</div>
                 <div><strong>Memory Limit:</strong> {problemStatement.memoryLimit}</div>
@@ -270,17 +331,17 @@ export default function PsForgePage() {
                   <summary className="cursor-pointer font-semibold hover:text-primary">View Full Statement Details</summary>
                   <div className="mt-2 space-y-2 pl-4 border-l-2 border-primary/50">
                     <h3 className="font-semibold mt-2 font-headline">Legend:</h3>
-                    <Textarea value={problemStatement.legend} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
+                    <Textarea value={problemStatement.legend} readOnly rows={10} className="bg-muted/50 font-code resize-y"/>
                     <h3 className="font-semibold mt-2 font-headline">Inputs:</h3>
-                    <Textarea value={problemStatement.inputs} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
+                    <Textarea value={problemStatement.inputs} readOnly rows={7} className="bg-muted/50 font-code resize-y"/>
                     <h3 className="font-semibold mt-2 font-headline">Outputs:</h3>
-                    <Textarea value={problemStatement.outputs} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
+                    <Textarea value={problemStatement.outputs} readOnly rows={7} className="bg-muted/50 font-code resize-y"/>
                     <h3 className="font-semibold mt-2 font-headline">Example:</h3>
-                    <Textarea value={problemStatement.example} readOnly rows={6} className="bg-muted/50 font-code resize-y"/>
+                    <Textarea value={problemStatement.example} readOnly rows={8} className="bg-muted/50 font-code resize-y"/>
                     {problemStatement.notes && (
                       <>
                         <h3 className="font-semibold mt-2 font-headline">Notes:</h3>
-                        <Textarea value={problemStatement.notes} readOnly rows={4} className="bg-muted/50 font-code resize-y"/>
+                        <Textarea value={problemStatement.notes} readOnly rows={5} className="bg-muted/50 font-code resize-y"/>
                       </>
                     )}
                   </div>
@@ -295,7 +356,7 @@ export default function PsForgePage() {
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
                 }>
-                  <Textarea value={generatedCodes.inputGeneratorCode} readOnly rows={12} className="font-code text-xs bg-muted/50 resize-y"/>
+                  <Textarea value={generatedCodes.inputGeneratorCode} readOnly rows={15} className="font-code text-xs bg-muted/50 resize-y"/>
                 </SectionCard>
               )}
               {generatedCodes.validatorCode && (
@@ -304,7 +365,7 @@ export default function PsForgePage() {
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
                 }>
-                  <Textarea value={generatedCodes.validatorCode} readOnly rows={12} className="font-code text-xs bg-muted/50 resize-y"/>
+                  <Textarea value={generatedCodes.validatorCode} readOnly rows={15} className="font-code text-xs bg-muted/50 resize-y"/>
                 </SectionCard>
               )}
               {generatedCodes.solutionCode && (
@@ -313,7 +374,7 @@ export default function PsForgePage() {
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
                 }>
-                  <Textarea value={generatedCodes.solutionCode} readOnly rows={12} className="font-code text-xs bg-muted/50 resize-y"/>
+                  <Textarea value={generatedCodes.solutionCode} readOnly rows={15} className="font-code text-xs bg-muted/50 resize-y"/>
                 </SectionCard>
               )}
             </div>
@@ -325,11 +386,11 @@ export default function PsForgePage() {
               className={fullProblemEvaluation.errorsFound ? "border-destructive" : "border-green-500"}
             >
               <h3 className="font-semibold font-headline">Overall Assessment:</h3>
-              <Textarea value={fullProblemEvaluation.overallAssessment} readOnly rows={8} className="bg-muted/50 resize-y"/>
+              <Textarea value={fullProblemEvaluation.overallAssessment} readOnly rows={10} className="bg-muted/50 resize-y"/>
               {fullProblemEvaluation.suggestions && (
                 <>
                   <h3 className="font-semibold mt-2 font-headline">Suggestions:</h3>
-                  <Textarea value={fullProblemEvaluation.suggestions} readOnly rows={5} className="bg-muted/50 resize-y"/>
+                  <Textarea value={fullProblemEvaluation.suggestions} readOnly rows={6} className="bg-muted/50 resize-y"/>
                 </>
               )}
             </SectionCard>
@@ -351,11 +412,9 @@ export default function PsForgePage() {
       </main>
       <footer className="w-full max-w-5xl mt-12 pt-8 border-t border-border text-center">
         <p className="text-sm text-muted-foreground font-body">
-          PS Forge &copy; {new Date().getFullYear()}. Powered by Genkit AI.
+          PS Forge &copy; {new Date().getFullYear()}. Powered by Genkit AI. Built with Firebase Studio.
         </p>
       </footer>
     </div>
   );
 }
-
-    

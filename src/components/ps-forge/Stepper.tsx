@@ -1,3 +1,4 @@
+
 "use client";
 
 import { cn } from "@/lib/utils";
@@ -11,23 +12,25 @@ interface StepperProps {
 export function Stepper({ currentStep, steps }: StepperProps) {
   return (
     <nav aria-label="Progress">
-      <ol role="list" className="flex items-center">
+      <ol role="list" className="flex items-center justify-around w-full">
         {steps.map((step, stepIdx) => (
           <li
             key={step.name}
             className={cn(
-              stepIdx !== steps.length - 1 ? "pr-8 sm:pr-20" : "",
-              "relative"
+              "relative flex-shrink-0", // Let items shrink if needed, but try to give them space via justify-around
+              stepIdx !== steps.length - 1 ? "pr-5 sm:pr-10 md:pr-16" : "" // Adjusted padding for connector lines
             )}
           >
             {step.id < currentStep ? (
               <>
-                <div
-                  className="absolute inset-0 flex items-center"
-                  aria-hidden="true"
-                >
-                  <div className="h-0.5 w-full bg-primary" />
-                </div>
+                {stepIdx !== steps.length - 1 && (
+                  <div
+                    className="absolute inset-0 left-1/2 top-[15px] flex items-center" // Position line from center of current to next
+                    aria-hidden="true"
+                  >
+                    <div className="h-0.5 w-full bg-primary transform -translate-y-1/2" />
+                  </div>
+                )}
                 <div
                   className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
                 >
@@ -37,12 +40,14 @@ export function Stepper({ currentStep, steps }: StepperProps) {
               </>
             ) : step.id === currentStep ? (
               <>
-                <div
-                  className="absolute inset-0 flex items-center"
-                  aria-hidden="true"
-                >
-                  <div className="h-0.5 w-full bg-gray-200" />
-                </div>
+                {stepIdx !== steps.length - 1 && (
+                  <div
+                    className="absolute inset-0 left-1/2 top-[15px] flex items-center"
+                    aria-hidden="true"
+                  >
+                    <div className="h-0.5 w-full bg-gray-200 transform -translate-y-1/2" />
+                  </div>
+                )}
                 <div
                   className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary bg-background text-primary"
                   aria-current="step"
@@ -53,12 +58,14 @@ export function Stepper({ currentStep, steps }: StepperProps) {
               </>
             ) : (
               <>
-                <div
-                  className="absolute inset-0 flex items-center"
-                  aria-hidden="true"
-                >
-                  <div className="h-0.5 w-full bg-gray-200" />
-                </div>
+                {stepIdx !== steps.length - 1 && (
+                   <div
+                    className="absolute inset-0 left-1/2 top-[15px] flex items-center"
+                    aria-hidden="true"
+                  >
+                    <div className="h-0.5 w-full bg-gray-200 transform -translate-y-1/2" />
+                  </div>
+                )}
                 <div
                   className="group relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-gray-300 bg-background hover:border-gray-400"
                 >
@@ -70,7 +77,13 @@ export function Stepper({ currentStep, steps }: StepperProps) {
                 </div>
               </>
             )}
-             <p className={cn("absolute pt-2 text-xs text-center w-full min-w-max -translate-x-1/2 left-1/2", step.id <= currentStep ? "font-medium text-primary" : "text-muted-foreground")}>{step.name}</p>
+            <p className={cn(
+                "absolute pt-2 text-xs text-center -translate-x-1/2 left-1/2 whitespace-nowrap", 
+                step.id <= currentStep ? "font-medium text-primary" : "text-muted-foreground"
+              )}
+            >
+              {step.name}
+            </p>
           </li>
         ))}
       </ol>
