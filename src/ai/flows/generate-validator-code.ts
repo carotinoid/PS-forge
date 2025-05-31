@@ -43,17 +43,20 @@ const generateValidatorCodePrompt = ai.definePrompt({
 
   Based on the following problem statement, generate C++ code that validates the input.
   The validator must ensure the input strictly adheres to all format and constraint details specified in the problem statement.
-  It is crucial to use 'testlib.h' utilities for robust validation (e.g., \`inf.readInt()\`, \`inf.readSpace()\`, \`inf.readEoln()\`, \`inf.ensure()\`).
-  The validator code should read from standard input (via \`inf\` object from testlib.h).
+  It is crucial to use 'testlib.h' utilities for robust validation.
+  - For reading inputs, use methods like \`inf.readInt()\`, \`inf.readSpace()\`, \`inf.readEoln()\`, etc.
+  - For checks, you can use \`inf.ensure(condition, "format string...", args...)\` to assert conditions with custom formatted messages.
+  - If a validation fails, the program must exit with a non-zero code. This is typically done by calling an appropriate \`quitf(_wa, "Error message about specific validation failure: %s was %d", variableName, variableValue);\` function from testlib.h. This provides the most descriptive error.
+  The validator code should read from standard input (via the \`inf\` object from testlib.h).
   It must call \`registerValidation(argc, argv);\` at the beginning of main.
-  It must return 0 by calling \`inf.readEof();\` and implicitly returning 0 if the input is valid according to all problem constraints.
-  If any validation fails, it must exit with a non-zero code by calling an appropriate \`quitf(...)\` function from testlib.h (e.g., \`quitf(_wa, "Error message about specific validation failure");\`).
+  If the input is valid according to all problem constraints, it must eventually call \`inf.readEof();\` and then typically return 0 (e.g., by main function ending).
 
   Problem Statement:
   {{{problemStatement}}}
 
   Ensure the generated code is efficient, correct, and adheres to best practices for competitive programming validators using testlib.h.
   Include necessary headers, primarily \`#include "testlib.h"\`.
+  Focus on providing clear, specific error messages for each validation check, ideally using \`quitf\` or the formatted version of \`inf.ensure\`.
   `,
 });
 
